@@ -1,0 +1,93 @@
+cmake_minimum_required(VERSION 3.16)
+project(RibbonDemoB VERSION 0.1.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+
+set(RIBBON_DEMO_B_STANDALONE OFF)
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    set(RIBBON_DEMO_B_STANDALONE ON)
+endif()
+option(RIBBON_DEMO_B_BUILD_DEMO "Build the B-only demo without VTK" ${RIBBON_DEMO_B_STANDALONE})
+option(RIBBON_DEMO_B_BUILD_TESTS "Build B component interaction tests" ${RIBBON_DEMO_B_STANDALONE})
+set(RIBBON_DEMO_B_QT_MAJOR "" CACHE STRING "Select Qt major version: 5 or 6 (empty: automatic)")
+set_property(CACHE RIBBON_DEMO_B_QT_MAJOR PROPERTY STRINGS "" 5 6)
+set(SARIBBON_SOURCE_DIR "" CACHE PATH "Existing SARibbon source checkout; empty uses adjacent source or pinned download")
+
+# Reuse the host application's Qt before attempting automatic selection.
+if(TARGET Qt5::Widgets)
+    set(QT_VERSION_MAJOR 5)
+elseif(TARGET Qt6::Widgets)
+    set(QT_VERSION_MAJOR 6)
+elseif(RIBBON_DEMO_B_QT_MAJOR MATCHES "^[56]$")
+    set(QT_VERSION_MAJOR ${RIBBON_DEMO_B_QT_MAJOR})
+elseif(RIBBON_DEMO_B_QT_MAJOR)
+    message(FATAL_ERROR "RIBBON_DEMO_B_QT_MAJOR must be 5, 6 or empty")
+else()
+    find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets Svg)
+endif()
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Svg)
+# SARibbon uses find_package(QT NAMES Qt6 Qt5); pin its lookup to this host's Qt.
+set(QT_DIR "${Qt${QT_VERSION_MAJOR}_DIR}")
+
+if(NOT TARGET SARibbonBar::SARibbonBar)
+    # Local normal variables override dependency options without rewriting host cache options.
+    set(SARIBBON_BUILD_EXAMPLES OFF)
+    set(SARIBBON_BUILD_STATIC_LIBS ON)
+    set(SARIBBON_USE_FRAMELESS_LIB OFF)
+    set(SARIBBON_INSTALL_IN_CURRENT_DIR OFF)
+    set(BUILD_TESTS OFF)
+    if(NOT SARIBBON_SOURCE_DIR AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../src/SARibbonBar/SARibbonBar.h")
+        get_filename_component(SARIBBON_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
+    endif()
+    if(SARIBBON_SOURCE_DIR)
+        if(NOT EXISTS "${SARIBBON_SOURCE_DIR}/src/SARibbonBar/SARibbonBar.h")
+            message(FATAL_ERROR "SARIBBON_SOURCE_DIR is not a SARibbon source checkout")
+        endif()
+        add_subdirectory("${SARIBBON_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/saribbon" EXCLUDE_FROM_ALL)
+    else()
+        include(FetchContent)
+        FetchContent_Declare(saribbon
+            GIT_REPOSITORY https://github.com/Starsrift/SARibbon-recreate.git
+            GIT_TAG e5d411d48e4060c7c56033763e79bb0f6c4d7b30
+            GIT_SUBMODULES ""
+        )
+        FetchContent_MakeAvailable(saribbon)
+    endif()
+endif()
+
+add_library(RibbonDemoB STATIC src/RibbonUi.h src/RibbonUi.cpp)
+add_library(RibbonDemoB::Ui ALIAS RibbonDemoB)
+target_include_directories(RibbonDemoB PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_link_libraries(RibbonDemoB PUBLIC SARibbonBar::SARibbonBar Qt${QT_VERSION_MAJOR}::Widgets)
+target_compile_definitions(RibbonDemoB PRIVATE QT_NO_KEYWORDS)
+if(MSVC)
+    target_compile_options(RibbonDemoB PRIVATE /utf-8)
+endif()
+
+if(RIBBON_DEMO_B_BUILD_DEMO)
+    add_executable(RibbonDemoBPreview MACOSX_BUNDLE demo/main.cpp)
+    set_target_properties(RibbonDemoBPreview PROPERTIES
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.ribbon.demo.bpreview"
+        MACOSX_BUNDLE_BUNDLE_NAME "RibbonDemoBPreview"
+    )
+    target_link_libraries(RibbonDemoBPreview PRIVATE RibbonDemoB::Ui)
+    if(MSVC)
+        target_compile_options(RibbonDemoBPreview PRIVATE /utf-8)
+    endif()
+endif()
+
+if(RIBBON_DEMO_B_BUILD_TESTS)
+    enable_testing()
+    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Test)
+    add_executable(RibbonDemoBTests tests/RibbonUiTest.cpp)
+    target_link_libraries(RibbonDemoBTests PRIVATE RibbonDemoB::Ui Qt${QT_VERSION_MAJOR}::Test)
+    target_compile_definitions(RibbonDemoBTests PRIVATE QT_NO_KEYWORDS)
+    if(MSVC)
+        target_compile_options(RibbonDemoBTests PRIVATE /utf-8)
+    endif()
+    add_test(NAME RibbonDemoB.Interactions COMMAND RibbonDemoBTests)
+    set_tests_properties(RibbonDemoB.Interactions PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()
