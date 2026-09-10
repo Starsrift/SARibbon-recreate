@@ -176,3 +176,7 @@ PIMPL 注意：`d_ptr` 用 `std::unique_ptr`（非 QScopedPointer），PrivateDa
 | [pimpl-dev-guide.md](docs/zh/dev-guide/pimpl-dev-guide.md) | PIMPL宏完整用法 |
 | [qt-integration.md](docs/zh/dev-guide/qt-integration.md) | Q_PROPERTY、信号槽、Qt宏 |
 | [build-SARibbon.md](docs/zh/build-guide/build-SARibbon.md) | CMake构建选项详解 |
+## Ribbon Demo B 应用开发
+
+本轮用户授权新增 `ribbon-demo-b/`，用于 RibbonDemo B（40%）的界面组件二次开发。
+该应用目录的源码、CMake、测试和交接文档按 `ribbon-demo-b/AGENTS.md` 管理；上文“唯一应编辑目录”针对核心库修改，不限制本次已授权应用开发。保留 SARibbon 核心库和生成文件。
